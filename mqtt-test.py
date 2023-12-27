@@ -39,7 +39,7 @@ client.on_connect = on_connect
 client.on_pre_connect = on_pre_connect
 client.connect("homeassistant.local", 1883) 
 
-subscriber = Mqtt.MqttSubscriber(client, "ventilation")
+subscriber = Mqtt.MqttSubscriber(client, "ventilation", timer)
 subscriber.subscribe("state/demand", on_demand, int)
 
 publisher = Mqtt.MqttPublisher(client, "ventilation", timer)

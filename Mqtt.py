@@ -78,7 +78,6 @@ class MqttPublisher:
                 ((dValue > 0) & (dTime > self.__publishInterval)) | \
                 (dTime > self.__forcePublishInterval):
                 
-                print(f"Publishing value for topic {topic.topic} value={topic.currentValue} dValue={dValue} dTime={dTime}")
                 self.__mqtt.publish(self.__baseTopic + topic.topic, topic.currentValue)
                 topic.lastPublishedValue = topic.currentValue
                 topic.lastPublishTime = time
@@ -90,7 +89,7 @@ class MqttPublisher:
             
         t = _PublishTopic()
         t.topic = topic
-        t.minChange = BaseComparer()
+        t.comparer = BaseComparer()
         t.lastPublishedValue = None
         t.lastPublishTime = datetime.now()
         t.currentValue = None
@@ -108,9 +107,11 @@ class MqttSubscriber:
     __mqtt: mqtt.Client
     __baseTopic: str
     __subscriptions = []
+    __timer: Timer
 
-    def __init__(self, mqtt, baseTopic):
+    def __init__(self, mqtt, baseTopic, timer):
         self.__mqtt = mqtt
+        self.__timer = timer
         self.__baseTopic = baseTopic
         if len(self.__baseTopic) > 0:
             self.__baseTopic += "/"
@@ -148,9 +149,14 @@ class MqttSubscriber:
         if subscription == None:
             return
         
-        self.__handle(subscription, value)
+        h = lambda: self.__handle(subscription, value)
+        print("register task")
+        self.__timer.execute(h)
+        print("after timer.execute")
+        
 
     def __handle(self, subscription, value):
+        print("Handling subscription task")
         if subscription.paramType == int:
             value = int(value)
         
