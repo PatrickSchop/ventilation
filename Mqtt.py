@@ -118,7 +118,10 @@ class MqttSubscriber:
         mqtt.on_message = self.__on_message
 
     def subscribe(self, topic, callback, paramType=None):
-        fullTopic = self.__baseTopic + topic
+        if topic.startswith("/"):
+            fullTopic = topic[1:]
+        else:
+            fullTopic = self.__baseTopic + topic
 
         s = self.__getSubscription(fullTopic)
         if (s == None):
