@@ -1,0 +1,12 @@
+{
+    "mqtt": {
+        "username": "mqtt",
+        "password": "mqtt"
+    },
+    "ventilation": {
+        "buttons": [
+            { "medium": 50, "high": 67, "max": 100 },
+            { "bla":43, "medium": 55, "high": 70, "max": 100 }
+        ]
+    }
+}
