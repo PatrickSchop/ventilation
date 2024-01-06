@@ -45,42 +45,67 @@ class MqttPublisher:
     __mqtt: mqtt.Client
     __baseTopic: str
     __topics = []
+    __timer: Timer
 
     __publishInterval = 10
     __forcePublishInterval = 60
 
     def __init__(self, mqtt, baseTopic, timer):
         self.__mqtt = mqtt
+        self.__timer = timer
+            
         self.__baseTopic = baseTopic
         if len(self.__baseTopic) > 0:
             self.__baseTopic += "/"
-
+        
         timer.add(self.__loop, 1)
+
 
     def register(self, topic, comparer = BaseComparer()):
         t = self.__getTopic(topic)
         t.comparer = comparer
+        self.__timer.execute(lambda: self.__publishTopic(t))
+
+
+    def publishState(self, topic, value):
+        t = self.__getTopic(topic)
+        #print(f"Publishing state topic {t.topic} : {value}")
+        t.currentValue = value        
+
 
     def publish(self, topic, value):
-        t = self.__getTopic(topic)
-        t.currentValue = value        
+        if topic.startswith("/"):
+            fullTopic = topic[1:]
+        else:
+            fullTopic = self.__baseTopic + topic
+
+        #print(f"Publishing to MQTT {fullTopic} : {value}")
+        self.__mqtt.publish(fullTopic, value)
+
 
     def __loop(self):
         time = datetime.now()
         
         for topic in self.__topics:
-            if (topic.currentValue == None):
-                continue
+            self.__publishTopic(topic)
 
-            dValue = topic.comparer.compare(topic.lastPublishedValue, topic.currentValue)
-            dTime = (time-topic.lastPublishTime).seconds
-            if  (dValue > 1) | \
-                ((dValue > 0) & (dTime > self.__publishInterval)) | \
-                (dTime > self.__forcePublishInterval):
-                
-                self.__mqtt.publish(self.__baseTopic + topic.topic, topic.currentValue)
-                topic.lastPublishedValue = topic.currentValue
-                topic.lastPublishTime = time
+
+    def __publishTopic(self, topic):
+        time = datetime.now()
+
+        if (topic.currentValue == None):
+            return
+
+        dValue = topic.comparer.compare(topic.lastPublishedValue, topic.currentValue)
+        dTime = (time-topic.lastPublishTime).seconds
+        if  (dValue > 1) | \
+            ((dValue > 0) & (dTime > self.__publishInterval)) | \
+            (dTime > self.__forcePublishInterval):
+            
+            self.publish(topic.topic, topic.currentValue)
+            topic.lastPublishedValue = topic.currentValue
+            topic.lastPublishTime = time
+
 
     def __getTopic(self, topic: str):
         for t in self.__topics:

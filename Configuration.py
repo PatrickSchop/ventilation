@@ -66,7 +66,7 @@ class Element(_ValueElement):
         s = Element()
         s._name = self._name
         s._type = self._type
-        s._value = None
+        s._value = self._value
         return s
 
 
@@ -156,6 +156,8 @@ class ListElement(_ValueElement):
 
 
     def getItem(self, n):
+        if (n < 0) or (n >= self.count()):
+            return None
         return self._items[n]
 
 
@@ -200,7 +202,7 @@ class ElementGroupList(_ParentElement):
 
 
     def getItem(self, n):
-        if (n < 0) or (n > self.count()):
+        if (n < 0) or (n >= self.count()):
             return None
         return self._items[n]
 
@@ -305,23 +307,3 @@ class _Configuration(ElementGroup):
 
 
 Configuration = _Configuration()
-
-Configuration.addElementGroup("mqtt") \
-    .addElement("server", defaultValue="homeassistant") \
-    .addElement("username", valueType=str) \
-    .addElement("password", valueType=str)
-
-ventilation = Configuration.addElementGroup("ventilation")
-ventilation.addElementGroupList("buttons") \
-    .addElement("medium", valueType=int) \
-    .addElement("high", valueType=int) \
-    .addElement("max", valueType=int) \
-
-
-Configuration.load("./config.json")
-
-print(Configuration.toString())
-
-print(Configuration.getValue("mqtt.server"))
-print(Configuration.getElement("ventilation").getElement("buttons").getItem(1).getValue("medium"))
-print(Configuration.getValue("ventilation.buttons.1.medium"))

@@ -25,11 +25,10 @@ class EnvironmentMonitor:
 
         self._resetScd41()
         timer.add(self._readData, 10)
-        timer.add(self._resetScd41, 60*60)
    
 
     def _readData(self):
-        if (datetime.now() - self._lastMeasurement).total_seconds > 600:
+        if (datetime.now() - self._lastMeasurement).total_seconds() > 600:
             self._resetScd41(soft = True)
 
         def onDataReady():
@@ -46,7 +45,7 @@ class EnvironmentMonitor:
             f"\"relativeHumidity\":{relativeHumidity} " + \
             "}"
         
-        self._mqttPublisher.publish("environment", json)
+        self._mqttPublisher.publishState("environment", json)
 
         if self.onMeasurement is not None:
             env = Environment()
@@ -60,4 +59,4 @@ class EnvironmentMonitor:
         self._scd41.stopPeriodicMeasurement()
         if not soft:
             self._timer.execute(self._scd41.reset, delay=0.2)        
-        self._timer.execute(self._scd41.startPeriodicMeasurement, delay=1)
+        self._timer.execute(self._scd41.startPeriodicMeasurement, delay=120)

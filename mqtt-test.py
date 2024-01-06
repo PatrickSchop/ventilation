@@ -24,7 +24,7 @@ def on_demand(value):
 
 def on_demandChanged(demand):
     print(f"Demand changed to {demand}")
-    publisher.publish("state/level", demand)
+    publisher.publishState("state/level", demand)
 
 
 demandCalculator = Ventilator.DemandCalculator()
