@@ -6,7 +6,7 @@ from Configuration import Configuration
 
 
 CO2_AVERAGE_TIME = 5
-HUMIDITY_AVERAGE_TIME = 120
+HUMIDITY_AVERAGE_TIME = 240
 HUMIDITY_RELIABLE_TIME = 5
 
 

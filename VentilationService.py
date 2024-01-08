@@ -1,9 +1,10 @@
 #! /bin/python3
 
+import sys
 import paho.mqtt.client as mqtt 
 import Mqtt
 from Timer import Timer
-from EnvironmentMonitor import EnvironmentMonitor
+from EnvironmentMonitor import EnvironmentMonitor, FakeEnvironmentMonitor
 from Ventilator import VentilationController
 from HomeAssistant import HomeAssistant
 from Configuration import Configuration
@@ -12,6 +13,9 @@ from Configuration import Configuration
 MQTT_SERVER = "homeassistant.home"
 MQTT_USER = "mqtt"
 MQTT_PASSWORD = "mqtt"
+
+print(f"Arguments: {sys.argv}")
+noEnvironment = "noenvironment" in sys.argv
 
 
 Configuration.addElementGroup("mqtt") \
@@ -60,11 +64,16 @@ publisher = Mqtt.MqttPublisher(client, "ventilation", timer)
 homeAssistant = HomeAssistant(timer, publisher, subscriber)
 connectCallbacks.append(homeAssistant.register)
 
-environmentMonitor = EnvironmentMonitor(timer, publisher)
+if noEnvironment:
+    print("Running without environment monitoring")
+    environmentMonitor = FakeEnvironmentMonitor()
+else:
+    environmentMonitor = EnvironmentMonitor(timer, publisher)
+
 ventilationController = VentilationController(publisher, subscriber, environmentMonitor, timer)
 
 homeAssistant.topic_base="ventilation"
-homeAssistant.add({"name":"Level", "type":"sensor", "state_topic":"ventilation/level", "unit_of_measurement": "%"})
+homeAssistant.add({"name":"Level", "type":"sensor", "state_topic":"ventilation/state/level", "unit_of_measurement": "%"})
 homeAssistant.add({"name":"Co2", "type":"sensor", "state_topic":"ventilation/environment", "value_template":"{{ value_json.co2 }}", "unit_of_measurement": "ppm", "device_class":"carbon_dioxide"}, key="co2")
 homeAssistant.add({"name":"Humidity", "type":"sensor", "state_topic":"ventilation/environment", "value_template":"{{ value_json.relativeHumidity }}", "unit_of_measurement": "%", "device_class":"humidity"}, key="humidity")
 homeAssistant.add({"name":"Temperature", "type":"sensor", "state_topic":"ventilation/environment", "value_template":"{{ value_json.temperature }}", "unit_of_measurement": "°C", "device_class":"temperature"}, key="temperature")

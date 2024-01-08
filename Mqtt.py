@@ -69,7 +69,6 @@ class MqttPublisher:
 
     def publishState(self, topic, value):
         t = self.__getTopic(topic)
-        #print(f"Publishing state topic {t.topic} : {value}")
         t.currentValue = value        
 
 
@@ -79,7 +78,6 @@ class MqttPublisher:
         else:
             fullTopic = self.__baseTopic + topic
 
-        #print(f"Publishing to MQTT {fullTopic} : {value}")
         self.__mqtt.publish(fullTopic, value)
 
 
@@ -157,7 +155,6 @@ class MqttSubscriber:
         s.callback = callback
         s.paramType = paramType
         
-        print(f"subscribing to {fullTopic}")
         self.__mqtt.subscribe(fullTopic)
     
     def __getSubscription(self, topic: str):
@@ -171,20 +168,15 @@ class MqttSubscriber:
         topic = msg.topic
         value = msg.payload.decode()
 
-        print(f"Received mqtt message with topic '{topic}' and value '{value}'")
-
         subscription = self.__getSubscription(topic)
         if subscription == None:
             return
         
         h = lambda: self.__handle(subscription, value)
-        print("register task")
         self.__timer.execute(h)
-        print("after timer.execute")
         
 
     def __handle(self, subscription, value):
-        print("Handling subscription task")
         if subscription.paramType == int:
             value = int(value)
         

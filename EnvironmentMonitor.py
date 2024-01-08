@@ -60,3 +60,8 @@ class EnvironmentMonitor:
         if not soft:
             self._timer.execute(self._scd41.reset, delay=0.2)        
         self._timer.execute(self._scd41.startPeriodicMeasurement, delay=120)
+
+
+class FakeEnvironmentMonitor():
+    def __init__(self):
+        self.onMeasurement = None

@@ -84,6 +84,7 @@ class HomeAssistant:
     
     
     def _homeAssistant_status(self, status):
+        print(f"HomeAssistant status changed to '{status}'")
         if status == "online":
             self.register()
     
