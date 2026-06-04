@@ -71,10 +71,12 @@ subscriber = Mqtt.MqttSubscriber(client, "ventilation", timer)
 publisher = Mqtt.MqttPublisher(client, "ventilation", timer)
 
 healthMonitor = MqttHealthMonitor(
-    timer, client, subscriber,
+    timer,
+    subscriber,
     Configuration.getValue("mqtt.server"), 1883,
     Configuration.getValue("mqtt.username"),
-    Configuration.getValue("mqtt.password")
+    Configuration.getValue("mqtt.password"),
+    baseTopic="ventilation"
 )
 
 homeAssistant = HomeAssistant(timer, publisher, subscriber)
