@@ -2,6 +2,7 @@ from datetime import datetime
 from Timer import Timer
 import paho.mqtt.client as mqtt 
 from ActionRunner import Runner as runner
+from Logger import Logger
 
 class BaseComparer:
     def compare(self, originalValue, newValue):
@@ -140,6 +141,12 @@ class MqttSubscriber:
             self.__baseTopic += "/"
         mqtt.on_message = self.__on_message
 
+    def on_connect(self):
+        Logger.info("MQTT subscriber re-subscribing topics after reconnect")
+        for s in self.__subscriptions:
+            Logger.info(f"Re-subscribing to {s.topic}")
+            self.__mqtt.subscribe(s.topic)
+
     def subscribe(self, topic, callback, paramType=None):
         if topic.startswith("/"):
             fullTopic = topic[1:]
@@ -181,4 +188,108 @@ class MqttSubscriber:
             value = int(value)
         
         runner.execute(subscription.callback, value)
+
+
+class MqttHealthMonitor:
+    __timer: Timer
+    __mqtt: mqtt.Client
+    _outstanding: dict
+    _pingId: int
+    _consecutiveFailures = 0
+    _maxFailures = 3
+    _pingInterval = 30
+    _pingTimeout = 90
+    _recentInFlight = 2
+    _host: str
+    _port: int
+    _username: str
+    _password: str
+
+    def __init__(self, timer, mqtt, subscriber, host, port, username=None, password=None):
+        self.__timer = timer
+        self.__mqtt = mqtt
+        self._host = host
+        self._port = port
+        self._username = username
+        self._password = password
+        self._outstanding = {}
+        self._pingId = 0
+
+        subscriber.subscribe("health/echo", self._handleEcho)
+        self._startEchoClient()
+
+        timer.add(self._check, self._pingInterval)
+
+    def _startEchoClient(self):
+        # MQTT does not deliver a client's own publishes back to its subscriptions
+        # (no loopback). To verify that subscriptions work, we use a second
+        # lightweight client that simply echoes every ping back to the same topic.
+        # When the main client receives the echo, both publish and subscribe
+        # paths are confirmed working.
+        self._echoClient = mqtt.Client()
+
+        def on_echo(client, userdata, msg):
+            client.publish("ventilation/health/echo", msg.payload)
+
+        if self._username:
+            self._echoClient.username_pw_set(self._username, self._password)
+        self._echoClient.on_message = on_echo
+        self._echoClient.connect(self._host, self._port)
+        self._echoClient.subscribe("ventilation/health/echo")
+        self._echoClient.loop_start()
+
+    def _handleEcho(self, value):
+        try:
+            pingId = int(value)
+            if pingId in self._outstanding:
+                del self._outstanding[pingId]
+        except ValueError:
+            pass
+
+    def _check(self):
+        if not self._echoClient.is_connected():
+            try:
+                Logger.warning("MQTT echo client disconnected, reconnecting")
+                self._echoClient.reconnect()
+            except Exception as e:
+                Logger.error(f"MQTT echo client reconnect failed: {e}")
+
+        now = datetime.now()
+        oldPings = [
+            pid for pid, ts in self._outstanding.items()
+            if (now - ts).total_seconds() > self._pingTimeout
+        ]
+        for pid in oldPings:
+            Logger.warning(f"MQTT ping {pid} expired ({self._pingTimeout}s), discarding")
+            del self._outstanding[pid]
+
+        self._pingId += 1
+        pingId = self._pingId
+        self._outstanding[pingId] = now
+        self.__mqtt.publish("ventilation/health/echo", str(pingId))
+
+        outstandingCount = len(self._outstanding)
+        unreturned = max(0, outstandingCount - self._recentInFlight)
+
+        if unreturned > 0:
+            self._consecutiveFailures += 1
+            Logger.warning(
+                f"MQTT subscription: {unreturned} pings unreturned "
+                f"({self._consecutiveFailures}/{self._maxFailures})"
+            )
+            if self._consecutiveFailures >= self._maxFailures:
+                Logger.warning("MQTT reconnecting after subscription ping failures")
+                try:
+                    self.__mqtt.reconnect()
+                    self._consecutiveFailures = 0
+                except Exception as e:
+                    Logger.error(f"MQTT reconnect failed: {e}")
+        else:
+            if self._consecutiveFailures > 0:
+                Logger.info("MQTT connection and subscriptions restored")
+                try:
+                    self.__mqtt.publish("ventilation/status", "online", retain=True)
+                except Exception as e:
+                    Logger.error(f"MQTT status publish failed: {e}")
+            self._consecutiveFailures = 0
     

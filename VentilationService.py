@@ -3,11 +3,13 @@
 import sys
 import paho.mqtt.client as mqtt 
 import Mqtt
+from Mqtt import MqttHealthMonitor
 from Timer import Timer
 from EnvironmentMonitor import EnvironmentMonitor, FakeEnvironmentMonitor
 from Ventilator import VentilationController
 from HomeAssistant import HomeAssistant
 from Configuration import Configuration
+from Logger import Logger
 
 
 MQTT_SERVER = "homeassistant.home"
@@ -36,11 +38,15 @@ timer = Timer()
 def setupMqttClient():
     def on_connect(client, userdata, flags, rc):
         if rc == 0:
-            print("Connected success")
+            Logger.info("MQTT connected success")
+            client.publish("ventilation/status", "online", retain=True)
             for cb in connectCallbacks:
                 timer.execute(cb)
         else:
-            print(f"Connected failed with code {rc}")
+            Logger.warning(f"MQTT connected failed with code {rc}")
+
+    def on_disconnect(client, userdata, rc):
+        Logger.warning(f"MQTT disconnected (rc={rc})")
 
     def on_pre_connect(client, userdata):
         # Function must be set in mqtt client setup to prevent an error. No implementation needed.
@@ -48,9 +54,12 @@ def setupMqttClient():
 
     client = mqtt.Client() 
     client.username_pw_set(Configuration.getValue("mqtt.username"), Configuration.getValue("mqtt.password"))
-    client.on_connect = on_connect 
+    client.reconnect_delay_set(min_delay=1, max_delay=120)
+    client.will_set("ventilation/status", "offline", retain=True)
+    client.on_connect = on_connect
+    client.on_disconnect = on_disconnect
     client.on_pre_connect = on_pre_connect
-    client.connect(Configuration.getValue("mqtt.server"), 1883) 
+    client.connect(Configuration.getValue("mqtt.server"), 1883)
 
     return client
 
@@ -61,7 +70,15 @@ client = setupMqttClient()
 subscriber = Mqtt.MqttSubscriber(client, "ventilation", timer)
 publisher = Mqtt.MqttPublisher(client, "ventilation", timer)
 
+healthMonitor = MqttHealthMonitor(
+    timer, client, subscriber,
+    Configuration.getValue("mqtt.server"), 1883,
+    Configuration.getValue("mqtt.username"),
+    Configuration.getValue("mqtt.password")
+)
+
 homeAssistant = HomeAssistant(timer, publisher, subscriber)
+connectCallbacks.append(subscriber.on_connect)
 connectCallbacks.append(homeAssistant.register)
 
 if noEnvironment:

@@ -1,17 +1,21 @@
 from datetime import datetime, timedelta
 import time
+import threading
 import ActionRunner
 
 
 
 class CancellationToken:
     __cancelled = False
+    __lock = threading.Lock()
 
     def cancelled(self):
-        return self.__cancelled
+        with self.__lock:
+            return self.__cancelled
 
     def cancel(self):
-        self.__cancelled = True
+        with self.__lock:
+            self.__cancelled = True
 
 
 
@@ -31,10 +35,12 @@ class Timer:
 
     __tasks: list
     __timerActions: list
+    __lock: threading.Lock
 
     def __init__(self):
         self.__tasks = []
         self.__timerActions = []
+        self.__lock = threading.Lock()
 
     def execute(self, func, defferredUntil=None, delay=None, parameters=None):
         a = Timer._Task()
@@ -47,14 +53,16 @@ class Timer:
 
         a.parameters = parameters
 
-        self.__tasks.append(a)
+        with self.__lock:
+            self.__tasks.append(a)
 
     def add(self, func, frequency):
         a = Timer._TimerAction()
         a.func = func
         a.frequency = frequency
         a.lastRun = datetime.now()
-        self.__timerActions.append(a)
+        with self.__lock:
+            self.__timerActions.append(a)
 
     def run(self, cancellationToken=CancellationToken()):
         while not cancellationToken.cancelled():
@@ -70,21 +78,23 @@ class Timer:
 
     def _takeTask(self):
         t = datetime.now()
-        for a in self.__tasks:
-            if (a.defferredUntil is None) or (a.defferredUntil <= t):
-                self.__tasks.remove(a)
-                return a
+        with self.__lock:
+            for a in self.__tasks:
+                if (a.defferredUntil is None) or (a.defferredUntil <= t):
+                    self.__tasks.remove(a)
+                    return a
             
         return None
     
     def _takeTimerAction(self):
         t = datetime.now()
-        for a in self.__timerActions:
-            if (a.lastRun + timedelta(seconds = a.frequency)) <= t:
-                self.__timerActions.remove(a)
-                self.__timerActions.append(a)
-                a.lastRun = t
-                return a
+        with self.__lock:
+            for a in self.__timerActions:
+                if (a.lastRun + timedelta(seconds = a.frequency)) <= t:
+                    self.__timerActions.remove(a)
+                    self.__timerActions.append(a)
+                    a.lastRun = t
+                    return a
         
         return None
     
