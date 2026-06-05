@@ -1,7 +1,7 @@
 from Timer import Timer
 from datetime import datetime, timedelta
 import json
-from Mqtt import MqttPublisher, MqttSubscriber
+from Mqtt import MqttConnection
 
 
 class HomeAssistant:
@@ -11,19 +11,19 @@ class HomeAssistant:
     _HOMEASSISTANT_TOPIC = "/homeassistant"
 
     _timer: Timer
-    _mqttPublisher: MqttPublisher
+    _mqtt: MqttConnection
     _entities: list
     _device: dict
     baseTopic: str
 
 
-    def __init__(self, timer, mqttPublisher, mqttSubscriber):
+    def __init__(self, timer, mqtt):
         self._timer = timer
-        self._mqttPublisher = mqttPublisher
+        self._mqtt = mqtt
         self._entities = []
         self._device = { "identifiers": [ self._DEVICE_ID ], "name": self._DEVICE_NAME }
         self.baseTopic = None
-        mqttSubscriber.subscribe("/homeassistant/status", self._homeAssistant_status)
+        self._mqtt.subscribe("/homeassistant/status", self._homeAssistant_status)
     
 
     def add(self, entity, key=None):
@@ -50,7 +50,7 @@ class HomeAssistant:
         for e in self._entities:
             entityJson = json.dumps(e)
 
-            self._mqttPublisher.publish(self._HOMEASSISTANT_TOPIC + "/" + e["type"] + "/" + e["unique_id"] + "/config", entityJson)
+            self._mqtt.publish(self._HOMEASSISTANT_TOPIC + "/" + e["type"] + "/" + e["unique_id"] + "/config", entityJson)
 
 
     _registerDeferral = None

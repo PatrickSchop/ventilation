@@ -1,4 +1,4 @@
-from Mqtt import MqttPublisher, MqttSubscriber, IntComparer
+from Mqtt import MqttConnection, IntComparer
 from Timer import Timer
 from EnvironmentMonitor import EnvironmentMonitor
 from datetime import datetime
@@ -78,22 +78,22 @@ class DemandCalculator:
 
 
 class ExternalDemand:
-    _mqttPublisher: MqttPublisher
+    _mqtt: MqttConnection
     _states = []
     
     onDemandChanged = None
     level = 0
 
 
-    def __init__(self, mqttPublisher, mqttSubscriber, timer):
-        self._mqttPublisher = mqttPublisher
+    def __init__(self, mqtt, timer):
+        self._mqtt = mqtt
 
         self._stateButtonCount = Configuration.getValue("ventilation.stateButtons.count")
         self._stateLevels = {"normal": 0, "medium": Configuration.getValue("ventilation.stateButtons.medium"), "high": Configuration.getValue("ventilation.stateButtons.high"), "max": 100}
 
         for i in range(0, self._stateButtonCount):
             self._states.append("normal")
-            mqttSubscriber.subscribe(f"state/demand/{i}/set", lambda v: self._mqttDemand(i, v))
+            self._mqtt.subscribe(f"state/demand/{i}/set", lambda v: self._mqttDemand(i, v))
         
         timer.add(self._publishAllStates, 60)
         self._demandChanged()
@@ -128,7 +128,7 @@ class ExternalDemand:
 
     def _publishState(self, stateNr):
         state = self._states[stateNr]
-        self._mqttPublisher.publishState(f"state/demand/{stateNr}", state)
+        self._mqtt.publishState(f"state/demand/{stateNr}", state)
     
 
     def _publishAllStates(self):
@@ -229,23 +229,23 @@ class VentilationController:
     _MQTT_LEVEL = "state/level"
     _MQTT_ITHO_LEVEL = "/itho/cmd"
 
-    _mqttPublisher: MqttPublisher
+    _mqtt: MqttConnection
     _demandCalculator: DemandCalculator
     _externalDemand: ExternalDemand
     _co2Average: _Average
     _humidityAverage: _Average
 
 
-    def __init__(self, mqttPublisher, mqttSubscriber, environmentMonitor, timer):
-        self._mqttPublisher = mqttPublisher
+    def __init__(self, mqtt, environmentMonitor, timer):
+        self._mqtt = mqtt
         self._demandCalculator = DemandCalculator()
-        self._externalDemand = ExternalDemand(mqttPublisher, mqttSubscriber, timer)
+        self._externalDemand = ExternalDemand(mqtt, timer)
 
         self._co2Average = _Average(CO2_AVERAGE_TIME)
         self._humidityAverage = _Average(HUMIDITY_AVERAGE_TIME, HUMIDITY_RELIABLE_TIME)
 
-        self._mqttPublisher.register(self._MQTT_LEVEL, IntComparer(5))
-        self._mqttPublisher.register(self._MQTT_ITHO_LEVEL, IntComparer(5))
+        self._mqtt.register(self._MQTT_LEVEL, IntComparer(5))
+        self._mqtt.register(self._MQTT_ITHO_LEVEL, IntComparer(5))
 
         environmentMonitor.onMeasurement = self._environmentMeasurement
 
@@ -271,10 +271,10 @@ class VentilationController:
 
     def _demandChanged(self, demand):
         demand = int(demand)
-        self._mqttPublisher.publishState(self._MQTT_LEVEL, demand)
+        self._mqtt.publishState(self._MQTT_LEVEL, demand)
 
         ithoLevel = int(min((demand/100)*254, 254))
-        self._mqttPublisher.publishState(self._MQTT_ITHO_LEVEL, ithoLevel)
+        self._mqtt.publishState(self._MQTT_ITHO_LEVEL, ithoLevel)
 
         print(f"Current demand: {demand} Itho: {ithoLevel}")
 

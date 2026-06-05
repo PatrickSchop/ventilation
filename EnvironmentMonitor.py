@@ -1,6 +1,6 @@
 from Scd41 import Scd41
 from Timer import Timer
-from Mqtt import MqttPublisher
+from Mqtt import MqttConnection
 from datetime import datetime
 from Logger import Logger
 
@@ -19,7 +19,7 @@ class Environment:
 class EnvironmentMonitor:
     _scd41: Scd41
     _timer: Timer
-    _mqttPublisher: MqttPublisher
+    _mqtt: MqttConnection
     _lastMeasurement: datetime
     onMeasurement: any
 
@@ -27,9 +27,9 @@ class EnvironmentMonitor:
     _co2FlatSince: datetime
     _consecutiveErrors: int
 
-    def __init__(self, timer, mqttPublisher):
+    def __init__(self, timer, mqtt):
         self._timer = timer
-        self._mqttPublisher = mqttPublisher
+        self._mqtt = mqtt
         self._scd41 = Scd41(timer)
         self._lastMeasurement = datetime.now()
         self.onMeasurement = None
@@ -73,7 +73,7 @@ class EnvironmentMonitor:
             f"\"relativeHumidity\":{relativeHumidity} " + \
             "}"
         
-        self._mqttPublisher.publishState("environment", json)
+        self._mqtt.publishState("environment", json)
 
         if self.onMeasurement is not None:
             env = Environment()
