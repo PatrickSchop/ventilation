@@ -78,6 +78,21 @@ def test_construct_uses_injected_factory(timer, mock_client_factory, frozen):
     assert kwargs.get("retain") is True
 
 
+def test_construct_survives_connect_failure(timer, frozen, monkeypatch):
+    """C1: if connect() throws (broker unreachable at boot), construction
+    must not crash the service. self.__client must still be assigned so
+    paho's reconnect machinery can recover.
+    """
+    factory = MagicMock(return_value=MagicMock(
+        connect=MagicMock(side_effect=OSError("broker down")),
+        loop_start=MagicMock(),
+    ))
+    monkeypatch.setattr(Logger, "error", lambda *a, **k: None)
+    # Should NOT raise
+    m = MqttConnection(timer, "h", 1883, baseTopic="v", clientFactory=factory)
+    assert m._MqttConnection__client is not None  # assigned even on failure
+
+
 def test_construct_registers_timer_actions(timer, mock_client_factory, frozen):
     factory, mock = mock_client_factory
     MqttConnection(timer, "h", 1883, baseTopic="ventilation", clientFactory=factory)
@@ -263,7 +278,6 @@ def test_health_check_message_id_wraps_at_2_31(make_mqtt, frozen):
 # C2 — xfail-strict: reset fires when stale (both connected & disconnected)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason="C2: __healthCheck returns early when is_connected()==False, never invoking aggressive reset", strict=True)
 def test_health_check_forces_reset_when_disconnected_and_stale(make_mqtt, frozen):
     m, mock = make_mqtt(failureThreshold=900)
     # Make last successful communication old

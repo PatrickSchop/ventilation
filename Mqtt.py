@@ -121,12 +121,17 @@ class MqttConnection:
         client.on_disconnect = self.__on_disconnect
         client.on_message = self.__on_message
         client.on_pre_connect = lambda c, u: ()
-        client.connect(self.__host, self.__port)
-        client.loop_start()
+        try:
+            client.connect(self.__host, self.__port)
+            client.loop_start()
+        except Exception as e:
+            Logger.error(f"MQTT client connect failed: {e}")
+        # Always assign so paho's reconnect loop owns the client even on initial failure
         self.__client = client
 
     def __on_connect(self, client, userdata, flags, rc):
         if rc == 0:
+            self.__lastSuccessfulCommunication = Clock.now()
             Logger.info("MQTT connected success")
             client.publish(f"{self.__baseTopic}status", "online", retain=True)
             for s in self.__subscriptions:
@@ -148,6 +153,7 @@ class MqttConnection:
         if subscription is None:
             return
 
+        self.__lastSuccessfulCommunication = Clock.now()
         h = lambda: self.__handle(subscription, value)
         self.__timer.execute(h)
 
@@ -236,6 +242,12 @@ class MqttConnection:
             topic.lastPublishTime = time
 
     def __healthCheck(self):
+        elapsed = (Clock.now() - self.__lastSuccessfulCommunication).total_seconds()
+        if elapsed > self.__failureThreshold:
+            Logger.warning(f"MQTT no communication for {elapsed:.0f}s, forcing reset")
+            self.__aggressiveReset()
+            return
+
         if not self.__client.is_connected():
             Logger.warning("MQTT health check: client disconnected")
             return
@@ -244,11 +256,6 @@ class MqttConnection:
         msgId = self.__messageId
         self.__outstandingPings[msgId] = Clock.now()
         self.__client.publish(f"{self.__baseTopic}health/ping", str(msgId))
-
-        elapsed = (Clock.now() - self.__lastSuccessfulCommunication).total_seconds()
-        if elapsed > self.__failureThreshold:
-            Logger.warning(f"MQTT no communication for {elapsed:.0f}s, forcing reset")
-            self.__aggressiveReset()
 
     def __onHealthPing(self, value):
         try:
