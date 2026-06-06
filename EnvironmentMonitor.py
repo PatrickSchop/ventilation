@@ -3,6 +3,7 @@ from Timer import Timer
 from Mqtt import MqttConnection
 from datetime import datetime
 from Logger import Logger
+from Clock import Clock
 
 FLAT_LINE_TIMEOUT = 900
 ERROR_SOFT_RESET_THRESHOLD = 3
@@ -31,7 +32,7 @@ class EnvironmentMonitor:
         self._timer = timer
         self._mqtt = mqtt
         self._scd41 = Scd41(timer)
-        self._lastMeasurement = datetime.now()
+        self._lastMeasurement = Clock.now()
         self.onMeasurement = None
 
         self._lastCo2 = None
@@ -44,7 +45,7 @@ class EnvironmentMonitor:
 
 
     def _readData(self):
-        if (datetime.now() - self._lastMeasurement).total_seconds() > 600:
+        if (Clock.now() - self._lastMeasurement).total_seconds() > 600:
             Logger.warning("No measurement for 10 min, soft resetting sensor")
             self._resetScd41(soft = True)
 
@@ -56,11 +57,11 @@ class EnvironmentMonitor:
 
     def _onMeasurement(self, co2, temperature, relativeHumidity):
         self._consecutiveErrors = 0
-        self._lastMeasurement = datetime.now()
+        self._lastMeasurement = Clock.now()
 
         if self._lastCo2 is not None and co2 == self._lastCo2:
             if self._co2FlatSince is None:
-                self._co2FlatSince = datetime.now()
+                self._co2FlatSince = Clock.now()
                 Logger.warning("CO2 flat-line detected, monitoring for 15 min threshold")
         else:
             self._co2FlatSince = None
@@ -84,7 +85,7 @@ class EnvironmentMonitor:
 
 
     def _healthCheck(self):
-        now = datetime.now()
+        now = Clock.now()
 
         secondsSinceLastMeasurement = (now - self._lastMeasurement).total_seconds()
         if secondsSinceLastMeasurement > STALE_MEASUREMENT_TIMEOUT:

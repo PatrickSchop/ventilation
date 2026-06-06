@@ -2,6 +2,7 @@ from Timer import Timer
 from datetime import datetime, timedelta
 import json
 from Mqtt import MqttConnection
+from Clock import Clock
 
 
 class HomeAssistant:
@@ -55,13 +56,13 @@ class HomeAssistant:
 
     _registerDeferral = None
     def _registerDelayed(self):
-        self._registerDeferral = datetime.now() + timedelta(seconds=10)
+        self._registerDeferral = Clock.now() + timedelta(seconds=10)
 
         def onRegister():
             if self._registerDeferral is None:
                 return
             
-            d = (self._registerDeferral - datetime.now()).total_seconds()
+            d = (self._registerDeferral - Clock.now()).total_seconds()
             if d > 0:
                 self._timer.execute(onRegister, defferredUntil=self._registerDeferral)
                 return

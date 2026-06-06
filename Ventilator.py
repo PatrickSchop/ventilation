@@ -3,6 +3,7 @@ from Timer import Timer
 from EnvironmentMonitor import EnvironmentMonitor
 from datetime import datetime
 from Configuration import Configuration
+from Clock import Clock
 
 
 CO2_AVERAGE_TIME = 5
@@ -178,20 +179,20 @@ class _Average:
     @property
     def reliable(self):
         self._checkLastSampleCurrent()
-            
+
         if len(self._samples) < 2:
             print("Average unreliable: not enough samples")
             return False
 
-        reliable = (datetime.now() - self._samples[0].time).total_seconds() > self._minReliableTime
+        reliable = (Clock.now() - self._samples[0].time).total_seconds() > self._minReliableTime
         if not reliable:
-            print(f"Average unreliable: current time: {datetime.now()}  first sample time: {self._samples[0].time}  min reliable time: {self._minReliableTime}")
+            print(f"Average unreliable: current time: {Clock.now()}  first sample time: {self._samples[0].time}  min reliable time: {self._minReliableTime}")
 
         return reliable
-    
+
 
     def append(self, value):
-        t = datetime.now()
+        t = Clock.now()
 
         self._checkLastSampleCurrent()
 
@@ -219,7 +220,7 @@ class _Average:
     def _checkLastSampleCurrent(self):
         if len(self._samples) > 0:
             lastSample = self._samples[-1]
-            if (datetime.now() - lastSample.time).total_seconds() > self._minReliableTime:
+            if (Clock.now() - lastSample.time).total_seconds() > self._minReliableTime:
                 print(f"Last sample too old. Discarding samples. count: {len(self._samples)} last sample time: {lastSample.time}  min reliable time: {self._minReliableTime}")
                 self._samples.clear()
 

@@ -3,6 +3,7 @@ from Timer import Timer
 import paho.mqtt.client as mqtt 
 from ActionRunner import Runner as runner
 from Logger import Logger
+from Clock import Clock
 
 class BaseComparer:
     def compare(self, originalValue, newValue):
@@ -82,7 +83,7 @@ class MqttConnection:
         self.__connectCallbacks = []
         self.__outstandingPings = {}
         self.__messageId = 0
-        self.__lastSuccessfulCommunication = datetime.now()
+        self.__lastSuccessfulCommunication = Clock.now()
         self.__createClient()
         self.subscribe("health/ping", self.__onHealthPing)
         timer.add(self.__publishLoop, 1)
@@ -155,7 +156,7 @@ class MqttConnection:
         t.topic = topic
         t.comparer = BaseComparer()
         t.lastPublishedValue = None
-        t.lastPublishTime = datetime.now()
+        t.lastPublishTime = Clock.now()
         t.currentValue = None
         self.__publishTopics.append(t)
         return t
@@ -200,13 +201,13 @@ class MqttConnection:
         self.__connectCallbacks.append(fn)
 
     def __publishLoop(self):
-        time = datetime.now()
+        time = Clock.now()
 
         for topic in self.__publishTopics:
             self.__publishTopic(topic)
 
     def __publishTopic(self, topic):
-        time = datetime.now()
+        time = Clock.now()
 
         if topic.currentValue is None:
             return
@@ -228,10 +229,10 @@ class MqttConnection:
 
         self.__messageId = (self.__messageId + 1) % (2**31)
         msgId = self.__messageId
-        self.__outstandingPings[msgId] = datetime.now()
+        self.__outstandingPings[msgId] = Clock.now()
         self.__client.publish(f"{self.__baseTopic}health/ping", str(msgId))
 
-        elapsed = (datetime.now() - self.__lastSuccessfulCommunication).total_seconds()
+        elapsed = (Clock.now() - self.__lastSuccessfulCommunication).total_seconds()
         if elapsed > self.__failureThreshold:
             Logger.warning(f"MQTT no communication for {elapsed:.0f}s, forcing reset")
             self.__aggressiveReset()
@@ -241,7 +242,7 @@ class MqttConnection:
             msgId = int(value)
             if msgId in self.__outstandingPings:
                 del self.__outstandingPings[msgId]
-            self.__lastSuccessfulCommunication = datetime.now()
+            self.__lastSuccessfulCommunication = Clock.now()
         except (ValueError, TypeError):
             pass
 
@@ -253,4 +254,4 @@ class MqttConnection:
             self.__client.subscribe(s.topic)
         for cb in self.__connectCallbacks:
             self.__timer.execute(cb)
-        self.__lastSuccessfulCommunication = datetime.now()
+        self.__lastSuccessfulCommunication = Clock.now()

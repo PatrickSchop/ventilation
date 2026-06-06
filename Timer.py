@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import time
 import threading
 import ActionRunner
+from Clock import Clock
 
 
 
@@ -47,7 +48,7 @@ class Timer:
         a.func = func
 
         if (defferredUntil is None) and (delay is not None):
-            defferredUntil = datetime.now() + timedelta(seconds=delay)
+            defferredUntil = Clock.now() + timedelta(seconds=delay)
 
         a.defferredUntil = defferredUntil
 
@@ -60,7 +61,7 @@ class Timer:
         a = Timer._TimerAction()
         a.func = func
         a.frequency = frequency
-        a.lastRun = datetime.now()
+        a.lastRun = Clock.now()
         with self.__lock:
             self.__timerActions.append(a)
 
@@ -77,7 +78,7 @@ class Timer:
 
 
     def _takeTask(self):
-        t = datetime.now()
+        t = Clock.now()
         with self.__lock:
             for a in self.__tasks:
                 if (a.defferredUntil is None) or (a.defferredUntil <= t):
@@ -87,7 +88,7 @@ class Timer:
         return None
     
     def _takeTimerAction(self):
-        t = datetime.now()
+        t = Clock.now()
         with self.__lock:
             for a in self.__timerActions:
                 if (a.lastRun + timedelta(seconds = a.frequency)) <= t:
