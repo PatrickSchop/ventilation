@@ -236,10 +236,13 @@ class _Configuration(ElementGroup):
             d = {}
             with open(path, 'r') as f:
                 d = json.load(f)
-            
+
             self._fromDictionary(self, d)
         except (FileNotFoundError, IOError):
             ()
+        except json.JSONDecodeError as e:
+            from Logger import Logger
+            Logger.error(f"Configuration: malformed JSON in {path}: {e}")
 
 
     def update(self, jsonString: str):

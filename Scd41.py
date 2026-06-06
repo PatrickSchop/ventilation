@@ -40,7 +40,14 @@ class Scd41:
             address = DEFAULT_I2C_ADDRESS
         self._address = address
 
-        self._bus = bus if bus is not None else SMBus(1)
+        if bus is not None:
+            self._bus = bus
+        else:
+            try:
+                self._bus = SMBus(1)
+            except (FileNotFoundError, OSError) as e:
+                Logger.error(f"SCD41: cannot open I2C bus 1: {e}")
+                self._bus = None
     
     def onDataReady(self, onDataReady):
         def handle(response):

@@ -102,7 +102,6 @@ class TestLoad:
         assert loaded.getValue("mqtt.server") == "home"
         assert loaded.getValue("mqtt.port") == 1883
 
-    @pytest.mark.xfail(reason="L5: Configuration.load does not catch JSONDecodeError; malformed config crashes the service", strict=True)
     def test_malformed_json_does_not_crash(self, tmp_path):
         path = str(tmp_path / "config.json")
         with open(path, "w") as f:
