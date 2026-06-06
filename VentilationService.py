@@ -10,10 +10,6 @@ from Logger import Logger
 from Mqtt import MqttConnection
 
 
-MQTT_SERVER = "homeassistant.home"
-MQTT_USER = "mqtt"
-MQTT_PASSWORD = "mqtt"
-
 print(f"Arguments: {sys.argv}")
 noEnvironment = "noenvironment" in sys.argv
 

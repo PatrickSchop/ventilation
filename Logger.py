@@ -1,5 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
+import os
 import traceback
 
 _logger = None
@@ -9,16 +10,23 @@ def _setupLogger():
     if _logger is not None:
         return _logger
 
-    handler = RotatingFileHandler(
-        "ventilation.log", maxBytes=5 * 1024 * 1024, backupCount=3
-    )
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
-    )
-
     _logger = logging.getLogger("ventilation")
-    _logger.addHandler(handler)
     _logger.setLevel(logging.INFO)
+
+    # Use an absolute path so the log file lands somewhere writable regardless
+    # of CWD (matters under systemd where WorkingDirectory may not be set).
+    log_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ventilation.log")
+    try:
+        handler = RotatingFileHandler(
+            log_path, maxBytes=5 * 1024 * 1024, backupCount=3
+        )
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+        )
+        _logger.addHandler(handler)
+    except (OSError, IOError) as e:
+        # Fall back to a console-only logger so we don't lose the error.
+        print(f"Logger: file handler setup failed ({e}); using console only")
     return _logger
 
 
