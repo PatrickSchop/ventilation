@@ -125,14 +125,14 @@ class MqttConnection:
             client.connect(self.__host, self.__port)
             client.loop_start()
         except Exception as e:
-            Logger.error(f"MQTT client connect failed: {e}")
+            Logger.fault("mqtt", f"MQTT client connect failed: {e}")
         # Always assign so paho's reconnect loop owns the client even on initial failure
         self.__client = client
 
     def __on_connect(self, client, userdata, flags, rc):
         if rc == 0:
             self.__lastSuccessfulCommunication = Clock.now()
-            Logger.info("MQTT connected success")
+            Logger.recovery("mqtt", "MQTT connected success")
             client.publish(f"{self.__baseTopic}status", "online", retain=True)
             for s in self.__subscriptions:
                 Logger.info(f"Re-subscribing to {s.topic}")
@@ -140,10 +140,10 @@ class MqttConnection:
             for cb in self.__connectCallbacks:
                 self.__timer.execute(cb)
         else:
-            Logger.warning(f"MQTT connected failed with code {rc}")
+            Logger.fault("mqtt", f"MQTT connected failed with code {rc}")
 
     def __on_disconnect(self, client, userdata, rc):
-        Logger.warning(f"MQTT disconnected (rc={rc})")
+        Logger.fault("mqtt", f"MQTT disconnected (rc={rc})")
 
     def __on_message(self, client, userdata, msg):
         topic = msg.topic
@@ -244,12 +244,12 @@ class MqttConnection:
     def __healthCheck(self):
         elapsed = (Clock.now() - self.__lastSuccessfulCommunication).total_seconds()
         if elapsed > self.__failureThreshold:
-            Logger.warning(f"MQTT no communication for {elapsed:.0f}s, forcing reset")
+            Logger.fault("mqtt", f"MQTT no communication for {elapsed:.0f}s, forcing reset")
             self.__aggressiveReset()
             return
 
         if not self.__client.is_connected():
-            Logger.warning("MQTT health check: client disconnected")
+            Logger.fault("mqtt", "MQTT health check: client disconnected")
             return
 
         self.__messageId = (self.__messageId + 1) % (2**31)

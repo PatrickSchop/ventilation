@@ -51,3 +51,11 @@ class Logger:
         print(msg)
         log = _setupLogger()
         log.info(msg)
+
+    @staticmethod
+    def fault(category: str, msg: str):
+        Logger.error(f"[ERROR:{category}] {msg}")
+
+    @staticmethod
+    def recovery(category: str, msg: str):
+        Logger.info(f"[RECOVERY:{category}] {msg}")

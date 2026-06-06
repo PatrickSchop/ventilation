@@ -46,7 +46,7 @@ class EnvironmentMonitor:
 
     def _readData(self):
         if (Clock.now() - self._lastMeasurement).total_seconds() > 600:
-            Logger.warning("No measurement for 10 min, soft resetting sensor")
+            Logger.fault("scd41", "No measurement for 10 min, soft resetting sensor")
             self._resetScd41(soft = True)
 
         def onDataReady():
@@ -56,6 +56,8 @@ class EnvironmentMonitor:
 
 
     def _onMeasurement(self, co2, temperature, relativeHumidity):
+        if self._consecutiveErrors > 0:
+            Logger.recovery("scd41", f"Sensor measurement resumed after {self._consecutiveErrors} consecutive errors")
         self._consecutiveErrors = 0
         self._lastMeasurement = Clock.now()
 
@@ -90,7 +92,8 @@ class EnvironmentMonitor:
         secondsSinceLastMeasurement = (now - self._lastMeasurement).total_seconds()
         if secondsSinceLastMeasurement > STALE_MEASUREMENT_TIMEOUT:
             self._consecutiveErrors += 1
-            Logger.warning(
+            Logger.fault(
+                "scd41",
                 f"Stale measurement ({secondsSinceLastMeasurement:.0f}s), "
                 f"consecutive errors: {self._consecutiveErrors}"
             )
@@ -107,7 +110,7 @@ class EnvironmentMonitor:
         if self._co2FlatSince is not None:
             flatDuration = (now - self._co2FlatSince).total_seconds()
             if flatDuration > FLAT_LINE_TIMEOUT:
-                Logger.warning(f"CO2 flat-line for {flatDuration:.0f}s, soft resetting sensor")
+                Logger.fault("scd41", f"CO2 flat-line for {flatDuration:.0f}s, soft resetting sensor")
                 self._co2FlatSince = None
                 self._resetScd41(soft=True)
 
@@ -117,7 +120,7 @@ class EnvironmentMonitor:
         try:
             self._scd41.stopPeriodicMeasurement()
         except OSError as e:
-            Logger.error(f"SCD41 stop_periodic_measurement failed: {e}")
+            Logger.fault("scd41", f"SCD41 stop_periodic_measurement failed: {e}")
         if not soft:
             self._timer.execute(self._scd41.reset, delay=0.2)
         self._timer.execute(self._scd41.startPeriodicMeasurement, delay=120)

@@ -28,6 +28,9 @@ EXCLUDE_NAMES = {
 EXCLUDE_SUFFIXES = (".log",)
 PRESERVE_ON_TARGET = {"config.json", "ventilation.log"}
 
+CRON_SCHEDULE = "*/10 * * * *"
+HEALTH_MONITOR_SCRIPT = "health_monitor.py"
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Deploy the ventilation service.")
@@ -125,6 +128,10 @@ def main():
                     f"{' '.join(RUNTIME_DEPS)}")
         ssh_run(client, f"sudo chmod 777 {REMOTE_DIR}/VentilationService.py")
         ssh_run(client, f"sudo systemctl start {SERVICE_NAME}")
+        cron_line = f"{CRON_SCHEDULE} python3 {REMOTE_DIR}/{HEALTH_MONITOR_SCRIPT}"
+        ssh_run(client,
+            f"(crontab -l 2>/dev/null | grep -v {HEALTH_MONITOR_SCRIPT} ; "
+            f"echo '{cron_line}') | crontab -")
     finally:
         client.close()
 
