@@ -32,14 +32,14 @@ class Scd41:
     _timer: Timer
     _bus: SMBus
 
-    def __init__(self, timer, address=None):
+    def __init__(self, timer, address=None, bus=None):
         self._timer = timer
 
         if address is None:
             address = DEFAULT_I2C_ADDRESS
         self._address = address
 
-        self._bus = SMBus(1)
+        self._bus = bus if bus is not None else SMBus(1)
     
     def onDataReady(self, onDataReady):
         def handle(response):

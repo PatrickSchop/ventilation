@@ -25,14 +25,26 @@ class IntComparer(BaseComparer):
     def compare(self, originalValue, newValue):
         if originalValue == None:
             return 2
-            
+
         if newValue == originalValue:
             return 0
 
         if abs(originalValue - newValue) < self.__minChange:
             return 1
-        
+
         return 2
+
+
+def shouldPublish(dValue, dTime, publishInterval, forcePublishInterval):
+    """Decision: should this topic be published right now?
+
+    Locks the boolean logic in MqttConnection.__publishTopic. dTime is
+    expressed in seconds (matching the original .seconds call site; Phase 8
+    will change the source to use .total_seconds()).
+    """
+    return (dValue > 1) | \
+           ((dValue > 0) & (dTime > publishInterval)) | \
+           (dTime > forcePublishInterval)
 
 
 class _PublishTopic:
@@ -68,7 +80,7 @@ class MqttConnection:
     __forcePublishInterval = 60
     __pingInterval = 30
 
-    def __init__(self, timer, host, port, username=None, password=None, baseTopic="", failureThreshold=900):
+    def __init__(self, timer, host, port, username=None, password=None, baseTopic="", failureThreshold=900, clientFactory=None):
         self.__timer = timer
         self.__host = host
         self.__port = port
@@ -78,6 +90,8 @@ class MqttConnection:
         if len(self.__baseTopic) > 0:
             self.__baseTopic += "/"
         self.__failureThreshold = failureThreshold
+        self.__clientFactory = clientFactory
+        self.__client = None
         self.__publishTopics = []
         self.__subscriptions = []
         self.__connectCallbacks = []
@@ -90,13 +104,15 @@ class MqttConnection:
         timer.add(self.__healthCheck, self.__pingInterval)
 
     def __createClient(self):
-        try:
-            self.__client.disconnect()
-            self.__client.loop_stop()
-        except Exception:
-            pass
+        if self.__client is not None:
+            try:
+                self.__client.disconnect()
+                self.__client.loop_stop()
+            except Exception:
+                pass
 
-        client = mqtt.Client()
+        factory = self.__clientFactory if self.__clientFactory is not None else mqtt.Client
+        client = factory()
         if self.__username:
             client.username_pw_set(self.__username, self.__password)
         client.reconnect_delay_set(min_delay=1, max_delay=120)
@@ -214,10 +230,7 @@ class MqttConnection:
 
         dValue = topic.comparer.compare(topic.lastPublishedValue, topic.currentValue)
         dTime = (time - topic.lastPublishTime).seconds
-        if  (dValue > 1) | \
-            ((dValue > 0) & (dTime > self.__publishInterval)) | \
-            (dTime > self.__forcePublishInterval):
-
+        if shouldPublish(dValue, dTime, self.__publishInterval, self.__forcePublishInterval):
             self.publish(topic.topic, topic.currentValue)
             topic.lastPublishedValue = topic.currentValue
             topic.lastPublishTime = time
