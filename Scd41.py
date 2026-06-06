@@ -2,6 +2,7 @@ import struct
 import time
 from datetime import datetime, timedelta
 from Timer import Timer
+from Logger import Logger
 
 from smbus2 import SMBus, i2c_msg
 
@@ -80,7 +81,10 @@ class Scd41:
         else:
             msg_w = i2c_msg.write(self._address, struct.pack(">H", command))
 
-        self._bus.i2c_rdwr(msg_w)
+        try:
+            self._bus.i2c_rdwr(msg_w)
+        except OSError as e:
+            Logger.error(f"SCD41 I2C write failed: {e}")
 
         if (handler is not None) or (response_length > 0):
             self._timer.execute(lambda: self._handleRdwrResponse(response_length, handler), delay=delay)
@@ -101,13 +105,17 @@ class Scd41:
 
         if response_length > 0:
             msg_r = i2c_msg.read(self._address, response_length)
-            self._bus.i2c_rdwr(msg_r)
+            try:
+                self._bus.i2c_rdwr(msg_r)
+            except OSError as e:
+                Logger.error(f"SCD41 I2C read failed: {e}")
+                return []
 
             result = list(msg_r)
             data = []
             for chunk in range(0, len(result), 3):
                 if self._crc8(result[chunk : chunk + 2]) != result[chunk + 2]:
-                    raise ValueError("ICP10125: Invalid CRC8 in response.")
+                    raise ValueError("SCD41: Invalid CRC8 in response.")
                 data.append((result[chunk] << 8) | result[chunk + 1])
             if len(data) == 1:
                 return data[0]

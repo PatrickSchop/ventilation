@@ -83,44 +83,43 @@ def test_external_demand_mqtt_demand_invalid_value_ignored(reset_class_state, fr
     assert ed._states[0] == "normal"
 
 
-@pytest.mark.xfail(reason="H4: all subscribed lambdas bind the final loop variable i", strict=True)
 def test_external_demand_routes_each_button_correctly_with_count_2(reset_class_state, monkeypatch):
     """With stateButtons.count=2, each registered callback must use its OWN index.
 
-    Current behavior (bug): all lambdas share the same i, so the last value
-    (i=1) is used by every callback. After the fix, button 0's callback
-    routes to _mqttDemand(0, ...) and button 1's to _mqttDemand(1, ...).
+    Locks the closure fix (H4). Without the fix, all lambdas share the same
+    i (=1, the last loop value), so driving the button-0 callback would
+    mutate _states[1] instead of _states[0]. With the fix, each callback
+    captures its own i via `lambda v, i=i: ...`.
     """
-    cfg = _Configuration()
-    cfg._name = "Configuration"
+    import Ventilator
+    cfg = Ventilator.Configuration
+    cfg._items.clear()
     sb = cfg.addElementGroup("ventilation").addElementGroup("stateButtons")
     sb.addElement("count", defaultValue=2)
     sb.addElement("medium", defaultValue=40)
     sb.addElement("high", defaultValue=75)
-    # Patch the reference in BOTH Configuration module and Ventilator module
-    monkeypatch.setattr("Configuration.Configuration", cfg)
-    monkeypatch.setattr("Ventilator.Configuration", cfg)
 
     mqtt = MagicMock()
     ed = ExternalDemand(mqtt, MagicMock())
 
-    # Capture the actual subscribed callbacks (and their topics)
-    # mqtt.subscribe(topic, callback) — find the call with "state/demand/0/set"
+    # Capture the subscribed callbacks; ExternalDemand subscribes with the
+    # unprefixed topic ("state/demand/{i}/set") because mqtt here is a
+    # plain mock, not a real MqttConnection that would prefix it.
     cb_by_topic = {}
     for c in mqtt.subscribe.call_args_list:
         topic = c.args[0] if c.args else c.kwargs.get("topic")
         if "demand" in (topic or "") and "/set" in (topic or ""):
             cb_by_topic[topic] = c.args[1] if c.args else c.kwargs.get("callback")
 
-    assert "ventilation/state/demand/0/set" in cb_by_topic
-    assert "ventilation/state/demand/1/set" in cb_by_topic
+    assert "state/demand/0/set" in cb_by_topic
+    assert "state/demand/1/set" in cb_by_topic
 
     # Drive the button-0 callback; it should mutate _states[0]
-    cb_by_topic["ventilation/state/demand/0/set"]("high")
-    assert ed._states[0] == "high"
+    cb_by_topic["state/demand/0/set"]("high")
+    assert ed._states[0] == "high", f"closure bug: button-0 callback mutated _states[1]? got {ed._states}"
     assert ed._states[1] == "normal"
 
     # Drive the button-1 callback; it should mutate _states[1]
-    cb_by_topic["ventilation/state/demand/1/set"]("max")
+    cb_by_topic["state/demand/1/set"]("max")
     assert ed._states[0] == "high"   # unchanged
     assert ed._states[1] == "max"

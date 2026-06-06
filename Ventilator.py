@@ -94,7 +94,7 @@ class ExternalDemand:
 
         for i in range(0, self._stateButtonCount):
             self._states.append("normal")
-            self._mqtt.subscribe(f"state/demand/{i}/set", lambda v: self._mqttDemand(i, v))
+            self._mqtt.subscribe(f"state/demand/{i}/set", lambda v, i=i: self._mqttDemand(i, v))
         
         timer.add(self._publishAllStates, 60)
         self._demandChanged()

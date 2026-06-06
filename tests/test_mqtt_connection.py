@@ -93,6 +93,22 @@ def test_construct_survives_connect_failure(timer, frozen, monkeypatch):
     assert m._MqttConnection__client is not None  # assigned even on failure
 
 
+def test_default_client_factory_uses_callback_api_version_1(timer, frozen, monkeypatch):
+    """H3: pin paho to the v1 callback API to avoid a future upgrade breaking
+    the 4-arg on_connect / 3-arg on_disconnect signatures used in this module.
+    """
+    import paho.mqtt.client as paho
+    captured = []
+    real_client = paho.Client
+    def spy(api_version=None):
+        captured.append(api_version)
+        return MagicMock()
+    monkeypatch.setattr(paho, "Client", spy)
+    MqttConnection(timer, "h", 1883, baseTopic="v")
+    assert captured == [paho.CallbackAPIVersion.VERSION1]
+    monkeypatch.setattr(paho, "Client", real_client)
+
+
 def test_construct_registers_timer_actions(timer, mock_client_factory, frozen):
     factory, mock = mock_client_factory
     MqttConnection(timer, "h", 1883, baseTopic="ventilation", clientFactory=factory)

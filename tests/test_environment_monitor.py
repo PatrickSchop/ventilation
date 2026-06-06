@@ -143,3 +143,23 @@ def test_read_data_triggers_soft_reset_when_no_measurement_for_10_min(em, frozen
     em._scd41.stopPeriodicMeasurement.assert_called_once()
     # And startPeriodicMeasurement was scheduled with delay 120
     assert em._scd41.startPeriodicMeasurement in em._timer._Timer__tasks or True  # scheduled, not necessarily run yet
+
+
+def test_reset_survives_throwing_stop_periodic_measurement(em, frozen, monkeypatch):
+    """H5: a throwing stopPeriodicMeasurement must not prevent the reset
+    from scheduling startPeriodicMeasurement. Lock the current 120s delay
+    (Phase 7 explicitly does NOT change the timing constants).
+    """
+    em._scd41.stopPeriodicMeasurement = MagicMock(side_effect=OSError("i2c glitch"))
+    em._scd41.startPeriodicMeasurement.reset_mock()
+    em._resetScd41(soft=True)
+    em._scd41.stopPeriodicMeasurement.assert_called_once()
+    # Verify startPeriodicMeasurement was scheduled (in the timer's task list)
+    scheduled_funcs = [t.func for t in em._timer._Timer__tasks]
+    assert em._scd41.startPeriodicMeasurement in scheduled_funcs
+    # Verify delay value is 120 (current behavior, not changed by Phase 7)
+    from datetime import datetime
+    scheduled_task = next(t for t in em._timer._Timer__tasks
+                          if t.func is em._scd41.startPeriodicMeasurement)
+    delay_seconds = (scheduled_task.defferredUntil - datetime(2024, 1, 1)).total_seconds()
+    assert delay_seconds == 120

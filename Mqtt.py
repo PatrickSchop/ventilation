@@ -111,7 +111,7 @@ class MqttConnection:
             except Exception:
                 pass
 
-        factory = self.__clientFactory if self.__clientFactory is not None else mqtt.Client
+        factory = self.__clientFactory if self.__clientFactory is not None else lambda: mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
         client = factory()
         if self.__username:
             client.username_pw_set(self.__username, self.__password)

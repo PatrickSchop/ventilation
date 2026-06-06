@@ -114,7 +114,10 @@ class EnvironmentMonitor:
 
     def _resetScd41(self, soft=False):
         Logger.info(f"Sensor reset (soft={soft})")
-        self._scd41.stopPeriodicMeasurement()
+        try:
+            self._scd41.stopPeriodicMeasurement()
+        except OSError as e:
+            Logger.error(f"SCD41 stop_periodic_measurement failed: {e}")
         if not soft:
             self._timer.execute(self._scd41.reset, delay=0.2)
         self._timer.execute(self._scd41.startPeriodicMeasurement, delay=120)
