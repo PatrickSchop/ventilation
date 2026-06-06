@@ -37,7 +37,7 @@ class HomeAssistant:
             objectId = entity["name"].lower().replace(" ", "_")
         if (self.baseTopic is not None) and objectId.startswith(self.baseTopic):
             objectId = objectId[len(self.baseTopic):]
-        objectId.lstrip("_")
+        objectId = objectId.lstrip("_")
         if key is not None:
             objectId += "_" + key
         entity["object_id"] = objectId

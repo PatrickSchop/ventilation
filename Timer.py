@@ -3,6 +3,7 @@ import time
 import threading
 import ActionRunner
 from Clock import Clock
+from Logger import Logger
 
 
 
@@ -65,16 +66,21 @@ class Timer:
         with self.__lock:
             self.__timerActions.append(a)
 
-    def run(self, cancellationToken=CancellationToken()):
+    def run(self, cancellationToken=None):
+        if cancellationToken is None:
+            cancellationToken = CancellationToken()
         while not cancellationToken.cancelled():
-            a = self._takeTask()
-            if (a == None):
-                a = self._takeTimerAction()
-            
-            if (a is not None):
-                ActionRunner.Runner.execute(a.func, a.parameters)
-            else:
-                time.sleep(Timer.DELAY)
+            try:
+                a = self._takeTask()
+                if (a == None):
+                    a = self._takeTimerAction()
+
+                if (a is not None):
+                    ActionRunner.Runner.execute(a.func, a.parameters)
+                else:
+                    time.sleep(Timer.DELAY)
+            except Exception as e:
+                Logger.error(f"Timer loop error: {e}")
 
 
     def _takeTask(self):

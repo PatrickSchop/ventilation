@@ -235,7 +235,7 @@ class MqttConnection:
             return
 
         dValue = topic.comparer.compare(topic.lastPublishedValue, topic.currentValue)
-        dTime = (time - topic.lastPublishTime).seconds
+        dTime = (time - topic.lastPublishTime).total_seconds()
         if shouldPublish(dValue, dTime, self.__publishInterval, self.__forcePublishInterval):
             self.publish(topic.topic, topic.currentValue)
             topic.lastPublishedValue = topic.currentValue

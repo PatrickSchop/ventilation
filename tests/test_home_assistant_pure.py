@@ -57,16 +57,11 @@ class TestAddObjectIdDerivation:
         ha.baseTopic = baseTopic
         return ha
 
-    def test_state_topic_with_basetopic_leading_underscore_current_behavior(self):
-        # CURRENT BEHAVIOR (Phase 1). Phase 8 (M3 fix) will change this test.
-        # The lstrip("_") on HomeAssistant.py:39 is a no-op (result discarded),
-        # so when baseTopic is "ventilation" and state_topic is
-        # "ventilation/state/level", the result is "_state_level" (leading
-        # underscore from the slash→underscore replacement that the baseTopic
-        # strip leaves behind).
+    def test_state_topic_with_basetopic_strips_basetopic_and_leading_underscore(self):
+        # Phase 8 (M3): objectId.lstrip("_") is now correctly assigned back.
         ha = self._make(baseTopic="ventilation")
         ha.add({"name": "Co2", "type": "sensor", "state_topic": "ventilation/state/level"})
-        assert ha._entities[-1]["object_id"] == "_state_level"
+        assert ha._entities[-1]["object_id"] == "state_level"
 
     def test_state_topic_without_basetopic(self):
         ha = self._make(baseTopic=None)

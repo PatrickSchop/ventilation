@@ -61,52 +61,52 @@ def test_cancellation_stops_run(monkeypatch):
     assert fired == []
 
 
-@pytest.mark.xfail(reason="M5: Timer.run default token is a shared mutable; two Timers share state", strict=True)
 def test_default_cancellation_tokens_are_independent():
-    """Two Timer instances should each have their own default token.
-
-    Current behavior: `def run(self, cancellationToken=CancellationToken())`
-    shares one default object across calls. With strict=True, this test
-    failing means the bug exists; once M5 is fixed, this test passes and
-    the strict xfail flips the suite red → marker must be removed.
-    """
+    """M5: Timer.run with no argument should produce a fresh CancellationToken
+    each call (no shared mutable default)."""
     t1 = Timer()
     t2 = Timer()
-    # Bypass __defaults__ introspection: compare identity of the default object
-    default_t1 = Timer.run.__defaults__[0]
-    default_t2 = Timer.run.__defaults__[0]
-    assert default_t1 is not default_t2
+    # __defaults__ should not contain a CancellationToken; first arg is None
+    defaults = Timer.run.__defaults__ or ()
+    if defaults:
+        assert defaults[0] is None, f"expected None default, got {type(defaults[0])}"
+    # Functional check: two runs with no token must not interfere
+    t1.add(lambda: 1, 0)
+    t2.add(lambda: 2, 0)
+    # Manually drive each — they should be independent
+    assert t1._Timer__timerActions[0].func() == 1
+    assert t2._Timer__timerActions[0].func() == 2
 
 
-@pytest.mark.xfail(reason="M6: Timer.run has no top-level backstop; a raw exception kills the loop", strict=True)
 def test_run_survives_raw_exception_in_callback(monkeypatch):
-    """A callback that bypasses ActionRunner and raises should NOT stop run().
+    """M6: a callback that bypasses ActionRunner and raises should NOT stop run().
 
-    Currently: run() calls `ActionRunner.Runner.execute(a.func, a.parameters)`
-    which catches exceptions. The xfail documents what the test ASSERTS
-    (the next scheduled task still runs after a throwing callback). After
-    M6 wraps the loop body in try/except, the inner block becomes redundant
-    but the test still asserts the end-to-end property: a raw raise does
-    not terminate the loop.
-
-    The simplest way to exercise this is to monkeypatch ActionRunner to a
-    no-op, then verify run() still progresses through pending tasks.
+    The Timer.run() loop body is wrapped in try/except → Logger.error, so
+    even a raw raise (e.g. from a callback that wasn't dispatched through
+    ActionRunner) cannot terminate the loop.
     """
     import ActionRunner
+    logged = []
+    monkeypatch.setattr(Logger, "error", staticmethod(lambda e: logged.append(e)))
+
     t = Timer()
     fired = []
-    t.add(lambda: fired.append("a"), 0)  # timer action, due now
-    t.execute(lambda: fired.append("b"))  # one-shot task
-    t.execute(lambda: (_ for _ in ()).throw(RuntimeError("boom")))  # raises
-    # Bypass the safety net for THIS test
-    monkeypatch.setattr(ActionRunner.Runner, "execute", lambda f, p=None: f(*(p or [])) if isinstance(p, list) else (f(p) if p is not None else f()))
 
-    # Manually run a few iterations; if the loop is robust it should keep going.
-    # Use a cancellation token to stop after a few cycles.
+    # Pre-cancel: run a finite number of iterations, then stop.
     ct = CancellationToken()
-    # Schedule a stop after we expect both "a" and "b" to fire
-    t.execute(lambda: ct.cancel(), delay=0)
+    t.execute(lambda: fired.append("first"))                 # fires first
+    t.execute(lambda: (_ for _ in ()).throw(RuntimeError("boom")))  # raises; M6 catches
+    t.execute(lambda: (fired.append("after-boom"), ct.cancel())[1])  # fires after, then cancels
+
+    # Bypass the safety net so the exception reaches the M6 backstop
+    monkeypatch.setattr(
+        ActionRunner.Runner, "execute",
+        lambda f, p=None: f(*(p or [])) if isinstance(p, list) else (f(p) if p is not None else f())
+    )
+
     t.run(ct)
-    # If the loop survived the boom, both 'a' and 'b' should have fired.
-    assert "a" in fired
-    assert "b" in fired
+    # If the loop survived, the task after the boom also fired
+    assert "first" in fired
+    assert "after-boom" in fired, f"loop died on boom; fired={fired}"
+    # M6 backstop logged the boom
+    assert any("boom" in str(e) for e in logged)
