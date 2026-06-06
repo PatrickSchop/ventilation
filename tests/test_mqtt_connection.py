@@ -294,7 +294,6 @@ def test_health_check_forces_reset_when_disconnected_and_stale(make_mqtt, frozen
 # H2 — xfail-strict: aggressiveReset does NOT double-subscribe or double-fire
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(reason="H2: __aggressiveReset manually re-subscribes and fires callbacks, duplicating async on_connect work", strict=True)
 def test_aggressive_reset_does_not_double_subscribe_or_callback(make_mqtt, timer):
     m, mock = make_mqtt()
     # Register a subscription and a connect callback

@@ -270,8 +270,6 @@ class MqttConnection:
         Logger.warning("MQTT aggressive reset")
         self.__outstandingPings.clear()
         self.__createClient()
-        for s in self.__subscriptions:
-            self.__client.subscribe(s.topic)
-        for cb in self.__connectCallbacks:
-            self.__timer.execute(cb)
+        # Re-subscription and connect-callback firing happen asynchronously
+        # via __on_connect when the new client connects — do not duplicate here.
         self.__lastSuccessfulCommunication = Clock.now()
